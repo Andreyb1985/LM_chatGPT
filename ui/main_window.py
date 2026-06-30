@@ -1,8 +1,9 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
-    QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
+    QHBoxLayout, QMainWindow, QMessageBox, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 )
 
 from app_gui import MainWindow as LegacyMainWindow
@@ -58,10 +59,7 @@ class MainWindow(LegacyMainWindow):
         self.last_send_report_path = ''
 
         self.setWindowTitle(f'{APP_NAME} v2')
-        self.resize(
-            int(self.settings.get('ui', {}).get('window_width', 1280)),
-            int(self.settings.get('ui', {}).get('window_height', 820)),
-        )
+        self._apply_adaptive_window_geometry()
         self.setStyleSheet(build_stylesheet())
         self._create_menu_bar()
         self._build_shell()
@@ -72,6 +70,40 @@ class MainWindow(LegacyMainWindow):
         if settings_warning:
             self.append_log(f'WARNUNG: {settings_warning}')
             QMessageBox.warning(self, 'Einstellungen', settings_warning)
+
+
+    def _apply_adaptive_window_geometry(self) -> None:
+        """Open within the available monitor area and keep the UI usable on small screens."""
+        ui = self.settings.get('ui', {})
+        requested_width = int(ui.get('window_width', 1280) or 1280)
+        requested_height = int(ui.get('window_height', 820) or 820)
+
+        screen = QGuiApplication.screenAt(self.pos()) or QGuiApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            max_width = max(960, available.width() - 80)
+            max_height = max(640, available.height() - 80)
+            width = min(max(requested_width, 960), max_width)
+            height = min(max(requested_height, 640), max_height)
+            self.resize(width, height)
+            self.move(
+                available.x() + max((available.width() - width) // 2, 0),
+                available.y() + max((available.height() - height) // 2, 0),
+            )
+            return
+
+        self.resize(min(max(requested_width, 960), 1280), min(max(requested_height, 640), 820))
+
+    def _wrap_page(self, page: QWidget) -> QScrollArea:
+        """Wrap each page so content scrolls instead of forcing the window beyond the monitor."""
+        scroll = QScrollArea()
+        scroll.setWidget(page)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setMinimumSize(0, 0)
+        return scroll
 
     def _build_shell(self) -> None:
         central = QWidget()
@@ -111,8 +143,11 @@ class MainWindow(LegacyMainWindow):
         self.pages['help'] = HelpPage(self)
         self.pages['about'] = AboutPage(self)
 
+        self.page_wrappers = {}
         for key in self.PAGE_TITLES:
-            self.stack.addWidget(self.pages[key])
+            wrapper = self._wrap_page(self.pages[key])
+            self.page_wrappers[key] = wrapper
+            self.stack.addWidget(wrapper)
 
     def _wire_legacy_logic(self) -> None:
         self.reload_company_combo()
@@ -134,7 +169,7 @@ class MainWindow(LegacyMainWindow):
     def navigate(self, key: str) -> None:
         if key not in self.pages:
             key = 'dashboard'
-        self.stack.setCurrentWidget(self.pages[key])
+        self.stack.setCurrentWidget(self.page_wrappers[key])
         self.sidebar.set_current(key)
         self.topbar.set_title(self.PAGE_TITLES.get(key, key))
 
@@ -184,7 +219,7 @@ class MainWindow(LegacyMainWindow):
 
     def _current_page_key(self) -> str:
         widget = self.stack.currentWidget()
-        for key, page in self.pages.items():
+        for key, page in self.page_wrappers.items():
             if page is widget:
                 return key
         return 'dashboard'
