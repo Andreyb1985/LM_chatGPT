@@ -1,14 +1,12 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
-    QHBoxLayout, QMainWindow, QMessageBox, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+    QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 )
 
 from app_gui import MainWindow as LegacyMainWindow
 from core.config import APP_NAME, consume_settings_warning, get_company_name, load_settings, save_settings
-from core.text_utils import repair_mojibake
 from ui.layout.footer import Footer
 from ui.layout.sidebar import Sidebar
 from ui.layout.topbar import TopBar
@@ -59,7 +57,10 @@ class MainWindow(LegacyMainWindow):
         self.last_send_report_path = ''
 
         self.setWindowTitle(f'{APP_NAME} v2')
-        self._apply_adaptive_window_geometry()
+        self.resize(
+            int(self.settings.get('ui', {}).get('window_width', 1280)),
+            int(self.settings.get('ui', {}).get('window_height', 820)),
+        )
         self.setStyleSheet(build_stylesheet())
         self._create_menu_bar()
         self._build_shell()
@@ -70,40 +71,6 @@ class MainWindow(LegacyMainWindow):
         if settings_warning:
             self.append_log(f'WARNUNG: {settings_warning}')
             QMessageBox.warning(self, 'Einstellungen', settings_warning)
-
-
-    def _apply_adaptive_window_geometry(self) -> None:
-        """Open within the available monitor area and keep the UI usable on small screens."""
-        ui = self.settings.get('ui', {})
-        requested_width = int(ui.get('window_width', 1280) or 1280)
-        requested_height = int(ui.get('window_height', 820) or 820)
-
-        screen = QGuiApplication.screenAt(self.pos()) or QGuiApplication.primaryScreen()
-        if screen is not None:
-            available = screen.availableGeometry()
-            max_width = max(960, available.width() - 80)
-            max_height = max(640, available.height() - 80)
-            width = min(max(requested_width, 960), max_width)
-            height = min(max(requested_height, 640), max_height)
-            self.resize(width, height)
-            self.move(
-                available.x() + max((available.width() - width) // 2, 0),
-                available.y() + max((available.height() - height) // 2, 0),
-            )
-            return
-
-        self.resize(min(max(requested_width, 960), 1280), min(max(requested_height, 640), 820))
-
-    def _wrap_page(self, page: QWidget) -> QScrollArea:
-        """Wrap each page so content scrolls instead of forcing the window beyond the monitor."""
-        scroll = QScrollArea()
-        scroll.setWidget(page)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll.setMinimumSize(0, 0)
-        return scroll
 
     def _build_shell(self) -> None:
         central = QWidget()
@@ -143,11 +110,8 @@ class MainWindow(LegacyMainWindow):
         self.pages['help'] = HelpPage(self)
         self.pages['about'] = AboutPage(self)
 
-        self.page_wrappers = {}
         for key in self.PAGE_TITLES:
-            wrapper = self._wrap_page(self.pages[key])
-            self.page_wrappers[key] = wrapper
-            self.stack.addWidget(wrapper)
+            self.stack.addWidget(self.pages[key])
 
     def _wire_legacy_logic(self) -> None:
         self.reload_company_combo()
@@ -169,42 +133,9 @@ class MainWindow(LegacyMainWindow):
     def navigate(self, key: str) -> None:
         if key not in self.pages:
             key = 'dashboard'
-        self.stack.setCurrentWidget(self.page_wrappers[key])
+        self.stack.setCurrentWidget(self.pages[key])
         self.sidebar.set_current(key)
         self.topbar.set_title(self.PAGE_TITLES.get(key, key))
-
-    def append_log(self, text: str):
-        cleaned = repair_mojibake(text)
-        if hasattr(self, 'log') and self.log is not None:
-            if hasattr(self.log, 'append_entry'):
-                self.log.append_entry(cleaned)
-            else:
-                self.log.append(cleaned)
-        progress = getattr(self, 'processing_progress', None)
-        if progress is not None:
-            progress.current.setText(cleaned)
-
-    def _update_pdf_input_ui(self):
-        super()._update_pdf_input_ui()
-        drop_zone = getattr(self, 'pdf_drop_zone', None)
-        if drop_zone is not None and hasattr(self, 'btn_pdf_select'):
-            drop_zone.set_button_text(self.btn_pdf_select.text())
-
-    def _refresh_validation_summary(self) -> None:
-        rows = getattr(self, 'all_table_rows', []) or []
-        total = len(rows)
-        missing = sum(1 for r in rows if 'keine e-mail' in str(r.get('Status', '')).lower())
-        errors = sum(1 for r in rows if str(r.get('Error', '') or '').strip() or 'fehler' in str(r.get('Status', '')).lower())
-        ready = max(total - missing - errors, 0)
-        for attr, text in [
-            ('validation_total_badge', f'{total} Mitarbeiter'),
-            ('validation_ready_badge', f'{ready} OK'),
-            ('validation_missing_badge', f'{missing} ohne E-Mail'),
-            ('validation_error_badge', f'{errors} Fehler'),
-        ]:
-            badge = getattr(self, attr, None)
-            if badge is not None:
-                badge.setText(text)
 
     def _set_busy(self, busy: bool):
         super()._set_busy(busy)
@@ -212,14 +143,11 @@ class MainWindow(LegacyMainWindow):
             button = getattr(self, attr, None)
             if button is not None:
                 button.setEnabled(not busy)
-        progress = getattr(self, 'processing_progress', None)
-        if progress is not None:
-            progress.set_busy(busy)
         self.topbar.set_title('Verarbeitung läuft…' if busy else self.PAGE_TITLES.get(self._current_page_key(), 'Dashboard'))
 
     def _current_page_key(self) -> str:
         widget = self.stack.currentWidget()
-        for key, page in self.page_wrappers.items():
+        for key, page in self.pages.items():
             if page is widget:
                 return key
         return 'dashboard'
@@ -228,18 +156,8 @@ class MainWindow(LegacyMainWindow):
         super().on_finished(result)
         if hasattr(self, 'dashboard_page'):
             self.dashboard_page.update_from_result(result)
-        self._refresh_validation_summary()
-        progress = getattr(self, 'processing_progress', None)
-        if progress is not None and result.get('mode') not in {'send_preview'}:
-            progress.set_completed('Vorgang abgeschlossen. Prüfergebnisse und Reports wurden aktualisiert.')
         if result.get('mode') not in {'send_preview', 'mass_message'}:
             self.navigate('validation')
-
-    def on_error(self, message: str):
-        progress = getattr(self, 'processing_progress', None)
-        if progress is not None:
-            progress.set_error(str(message))
-        super().on_error(message)
 
     def _save_ui_state(self):
         self.settings['selected_company_id'] = self.company_combo.currentData() or ''
