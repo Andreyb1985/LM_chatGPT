@@ -61,3 +61,35 @@ The shell no longer uses placeholder `SimplePage` for the approved main navigati
 ### Integration rule
 
 For this preview the existing dialogs remain the source of truth for settings, companies, e-mail templates, period/password configuration and help/support. The new pages act as commercial-grade entry points and will be deep-integrated screen by screen in later previews.
+
+## Build Preview 3 — Processing/Validation Integration
+
+### Added modules
+
+- `ui/widgets/drop_zone.py` — drag & drop import target for PDF/Excel paths.
+- `ui/widgets/progress_card.py` — shared live progress card connected to worker busy/error/completed states.
+- `ui/widgets/log_view.py` — operation journal wrapper for processing logs.
+- `ui/widgets/metric_card.py` — reusable KPI component for Dashboard.
+
+### Integration notes
+
+The new widgets remain legacy-compatible by preserving the existing attributes consumed by `app_gui.MainWindow`:
+
+- `pdf_input_edit`
+- `excel_file_edit`
+- `btn_pdf_select`
+- `btn_check`
+- `btn_send`
+- `btn_send_selected`
+- `log`
+- `table`
+
+`ui.main_window.MainWindow` still inherits the legacy class, but now overrides selected bridge methods:
+
+- `append_log()` updates the new operation journal and live progress text.
+- `_set_busy()` updates the live progress card and existing button states.
+- `_update_pdf_input_ui()` keeps the PDF drop-zone button text synchronized with folder/single-PDF mode.
+- `on_finished()` updates Dashboard, validation summary badges and navigation.
+- `on_error()` updates the progress card before showing the legacy error dialog.
+
+This keeps the PDF/Excel/Mail core untouched while moving the UX toward the frozen v2 workflow.

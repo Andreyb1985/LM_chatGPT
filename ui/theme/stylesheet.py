@@ -8,10 +8,15 @@ def build_stylesheet() -> str:
     QLabel#muted {{ color: {t.MUTED}; }}
     QLabel#pageTitle {{ font-size: 26px; font-weight: 700; color: {t.TEXT}; }}
     QLabel#sectionTitle {{ font-size: 16px; font-weight: 650; color: {t.TEXT}; }}
+    QLabel#metricValue {{ font-size: 32px; font-weight: 800; color: {t.TEXT}; }}
+    QLabel#dropPath {{ color: {t.TEXT}; background: {t.SURFACE_2}; border: 1px solid {t.BORDER}; border-radius: 10px; padding: 8px 10px; }}
     QFrame#sidebar {{ background: {t.SIDEBAR}; border-right: 1px solid {t.BORDER}; }}
     QFrame#topbar {{ background: {t.SURFACE}; border-bottom: 1px solid {t.BORDER}; }}
     QFrame#footer {{ background: {t.SURFACE}; border-top: 1px solid {t.BORDER}; }}
     QFrame#card {{ background: {t.SURFACE}; border: 1px solid {t.BORDER}; border-radius: 14px; }}
+    QFrame#dropZone {{ background: {t.SURFACE_2}; border: 1px dashed {t.BORDER}; border-radius: 14px; }}
+    QFrame#dropZone[hasPath="true"] {{ background: {t.PRIMARY_SOFT}; border: 1px solid {t.PRIMARY}; }}
+    QFrame#dropZone[dragging="true"] {{ background: {t.PRIMARY_SOFT}; border: 2px dashed {t.PRIMARY}; }}
     QPushButton {{
         border: 1px solid {t.BORDER}; background: {t.SURFACE}; border-radius: 10px; padding: 8px 14px; font-weight: 600; min-height: 22px;
     }}
@@ -24,9 +29,10 @@ def build_stylesheet() -> str:
     QPushButton#nav:hover {{ background: {t.SURFACE_2}; color: {t.TEXT}; }}
     QPushButton#nav[selected="true"] {{ background: {t.PRIMARY_SOFT}; color: {t.PRIMARY}; }}
     QLineEdit, QComboBox, QSpinBox {{ background: {t.SURFACE}; border: 1px solid {t.BORDER}; border-radius: 10px; padding: 8px 10px; min-height: 22px; }}
+    QLineEdit#pathMirror {{ color: {t.MUTED}; background: {t.SURFACE_2}; }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 1px solid {t.PRIMARY}; }}
     QCheckBox {{ spacing: 8px; }}
-    QTableWidget {{ background: {t.SURFACE}; border: 1px solid {t.BORDER}; border-radius: 12px; gridline-color: {t.BORDER}; selection-background-color: {t.PRIMARY_SOFT}; }}
+    QTableWidget {{ background: {t.SURFACE}; border: 1px solid {t.BORDER}; border-radius: 12px; gridline-color: {t.BORDER}; selection-background-color: {t.PRIMARY_SOFT}; alternate-background-color: {t.SURFACE_2}; }}
     QHeaderView::section {{ background: {t.SURFACE_2}; padding: 10px; border: none; border-bottom: 1px solid {t.BORDER}; font-weight: 650; color: {t.MUTED}; }}
     QTextEdit {{ background: {t.SURFACE}; border: 1px solid {t.BORDER}; border-radius: 12px; padding: 10px; }}
     QProgressBar {{ border: none; background: #EEF2F7; border-radius: 4px; height: 8px; text-align: center; }}
